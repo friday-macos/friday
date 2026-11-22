@@ -1,10 +1,10 @@
-# FRIDAY for macOS
+# FRIDAY for macOS — AI Assistant for Voice & Text
 
-**한국어로 대화하고, Mac에서 작업을 이어가는 Codex 음성 비서.**
+**Talk, type, and keep your work moving on your Mac.** FRIDAY helps you chat with Codex, keep track of projects, and run background tasks from the menu bar.
 
 `Apple Silicon` · `macOS 14+` · `Rust` · `v0.2.0 Preview`
 
-[English](#english) · [시작하기](#시작하기) · [소스에서 빌드](#소스에서-빌드) · [데이터와 권한](#데이터와-권한) · [라이선스](#라이선스)
+[Language support & English quick start](#language-support--english-quick-start) · [한국어로 시작하기](#시작하기) · [빌드](#소스에서-빌드) · [데이터와 권한](#데이터와-권한) · [라이선스](#라이선스)
 
 FRIDAY는 메뉴 막대에서 열리는 한국어 음성·텍스트 비서다. 작업을 진행하는 동안 새 질문을 보낼 수 있고, Mac과 연결된 브라우저에서 같은 대화와 진행 상황을 볼 수 있다.
 
@@ -15,15 +15,13 @@ FRIDAY는 메뉴 막대에서 열리는 한국어 음성·텍스트 비서다. �
 | **백그라운드 작업** | 작업을 보내고 진행 상황과 결과를 작업 화면에서 확인한다. 권한이 필요한 작업은 승인 카드로 표시된다. |
 | **iPhone·iPad 연결** | Mac에서 웹 연결을 켜고, 같은 Tailscale 네트워크에서 HTTPS와 연결 코드로 접속한다. |
 
-## English
+## Language support & English quick start
 
-**FRIDAY is a macOS assistant for text and voice conversations, project history, and background tasks powered by Codex.** The current preview supports English text conversations. The Mac and web interfaces, speech recognition, and voice playback currently use Korean.
+**Use the text field to write in your preferred language.** Replies default to Korean in this preview. Ask for a reply in your language in your message, for example “Please reply in English,” “Réponds en français,” or “日本語で答えてください。” The Mac and web interfaces, speech recognition, and voice playback currently use Korean.
 
 1. Use an Apple Silicon Mac running macOS 14 or later. Install the [official Codex CLI](https://developers.openai.com/codex/cli) and run `codex login` with your own ChatGPT account.
 2. Build and open `FRIDAY.app` using the [build commands below](#소스에서-빌드). The source build requires Rust, Cargo, the Xcode Command Line Tools, and CMake.
-3. Type in English and send with `⌘↵` or **보내기** (Send). Replies default to Korean. Start your message with **“Please reply in English.”** to request an English answer.
-
-You can use English text on the Mac or in the connected web interface.
+3. Type your message and send with `⌘↵` or **보내기** (Send). You can use the text field on the Mac or in a connected browser.
 
 ## 시작하기
 
