@@ -4,7 +4,7 @@
 
 `Apple Silicon` · `macOS 14+` · `Rust` · `v0.2.0 Preview`
 
-[시작하기](#시작하기) · [소스에서 빌드](#소스에서-빌드) · [데이터와 권한](#데이터와-권한) · [라이선스](#라이선스)
+[English](#english) · [시작하기](#시작하기) · [소스에서 빌드](#소스에서-빌드) · [데이터와 권한](#데이터와-권한) · [라이선스](#라이선스)
 
 FRIDAY는 메뉴 막대에서 열리는 한국어 음성·텍스트 비서다. 작업을 진행하는 동안 새 질문을 보낼 수 있고, Mac과 연결된 브라우저에서 같은 대화와 진행 상황을 볼 수 있다.
 
@@ -14,6 +14,16 @@ FRIDAY는 메뉴 막대에서 열리는 한국어 음성·텍스트 비서다. �
 | **프로젝트 기억** | 한 대화 화면에서 프로젝트를 오가며 대화와 작업 이력을 이어간다. 기록은 Mac의 SQLite에 저장한다. |
 | **백그라운드 작업** | 작업을 보내고 진행 상황과 결과를 작업 화면에서 확인한다. 권한이 필요한 작업은 승인 카드로 표시된다. |
 | **iPhone·iPad 연결** | Mac에서 웹 연결을 켜고, 같은 Tailscale 네트워크에서 HTTPS와 연결 코드로 접속한다. |
+
+## English
+
+**FRIDAY is a macOS assistant for text and voice conversations, project history, and background tasks powered by Codex.** The current preview supports English text conversations. The Mac and web interfaces, speech recognition, and voice playback currently use Korean.
+
+1. Use an Apple Silicon Mac running macOS 14 or later. Install the [official Codex CLI](https://developers.openai.com/codex/cli) and run `codex login` with your own ChatGPT account.
+2. Build and open `FRIDAY.app` using the [build commands below](#소스에서-빌드). The source build requires Rust, Cargo, the Xcode Command Line Tools, and CMake.
+3. Type in English and send with `⌘↵` or **보내기** (Send). Replies default to Korean. Start your message with **“Please reply in English.”** to request an English answer.
+
+You can use English text on the Mac or in the connected web interface.
 
 ## 시작하기
 
