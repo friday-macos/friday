@@ -1,0 +1,38 @@
+[package]
+name = "jarvis"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+accessibility = "0.2"
+base64 = "0.22"
+block2 = "0.6"
+core-foundation = "0.10"
+eframe = { version = "0.34", default-features = false, features = ["glow", "default_fonts", "accesskit"] }
+global-hotkey = "0.10.0"
+getrandom = "0.4"
+libc = "0.2"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["NSApplication", "NSWindow", "NSOpenPanel", "NSPanel", "NSResponder", "NSRunningApplication", "NSSavePanel", "NSWorkspace", "NSBitmapImageRep", "NSImageRep", "objc2-core-graphics", "block2", "libc"] }
+objc2-avf-audio = "0.3"
+objc2-core-graphics = "0.3"
+objc2-foundation = "0.3"
+objc2-screen-capture-kit = { version = "0.3", default-features = false, features = ["SCScreenshotManager", "SCShareableContent", "SCStream", "block2", "libc", "objc2-core-foundation", "objc2-core-graphics"] }
+objc2-speech = "0.3"
+qwen3-tts = { git = "https://github.com/HeiSir2014/qwen3-tts-candle", rev = "c2bd9ee4f0c5a64876bb99721c05d4c648ed0eb8", version = "0.3.0", features = ["metal"], optional = true }
+rodio = { version = "0.21", default-features = false, features = ["playback"], optional = true }
+rusqlite = { version = "0.39", features = ["bundled"] }
+serde_json = "1"
+tiny_http = "0.12"
+tray-icon = { version = "0.26.1", default-features = false }
+url = "2.5"
+whisper-rs = "0.16"
+
+[features]
+neural-voice = ["dep:qwen3-tts", "dep:rodio"]
+
+[[bin]]
+name = "jarvis-voice"
+path = "src/bin/jarvis_voice.rs"
+required-features = ["neural-voice"]

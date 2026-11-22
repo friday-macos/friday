@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090e17">
+  <title>FRIDAY</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+  <script src="/voice.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><div><strong>FRIDAY</strong><small>원격 제어</small></div></div>
+    <nav aria-label="화면 선택">
+      <button type="button" data-tab="chat" aria-pressed="true">대화</button>
+      <button type="button" data-tab="tasks" aria-pressed="false">작업 <span id="pending" hidden></span></button>
+      <button type="button" data-tab="connection" aria-pressed="false">연결</button>
+    </nav>
+  </header>
+  <main>
+    <section id="connection" class="surface connection">
+      <h1>Mac과 연결</h1>
+      <p id="pair-instructions">Mac의 프라이데이에서 <b>연결 → 연결 코드 복사</b>를 선택해.</p>
+      <p id="reconnecting" role="status" hidden>Mac 연결 확인 중…</p>
+      <form id="pair">
+        <label for="code">연결 코드</label>
+        <input id="code" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+        <label class="remember-device" id="remember-device" hidden>
+          <input id="keep-connection" type="checkbox"> 이 기기에서 연결 유지
+        </label>
+        <button class="primary">연결</button>
+      </form>
+      <button id="forget" type="button" hidden>연결 해제</button>
+    </section>
+    <div id="workspace" hidden>
+      <section class="host surface" aria-label="Mac 연결 상태">
+        <span class="device" aria-hidden="true">⌘</span>
+        <div><strong id="host">MacBook Pro</strong><small><i class="dot"></i><span id="connection-status">연결됨</span></small></div>
+        <span id="project" class="project"></span>
+      </section>
+      <div id="layout" class="layout">
+        <section id="voice" class="voice" aria-label="프라이데이 음성 상태">
+          <div class="orb" id="orb" data-mode="idle" aria-hidden="true"><div class="wave"></div></div>
+          <h1 id="mode">대기 중</h1>
+          <div class="levels" id="levels" aria-hidden="true"></div>
+          <div class="voice-actions">
+            <button id="mic" type="button" class="primary" aria-pressed="false">음성 대화 시작</button>
+          </div>
+          <div class="voice-volume">
+            <label for="voice-volume">낭독 음량</label>
+            <output id="voice-volume-value" for="voice-volume">65%</output>
+            <input id="voice-volume" type="range" min="0" max="100" step="5" value="65">
+          </div>
+          <p id="live-transcript" class="live-transcript" aria-live="polite"></p>
+          <div class="counts">
+            <button type="button" data-go-tasks><span>백그라운드</span><strong id="running">0</strong></button>
+            <button type="button" data-go-tasks><span>승인 대기</span><strong id="waiting">0</strong></button>
+          </div>
+        </section>
+        <section class="surface conversation">
+          <header class="section-title"><h2 id="conversation-title">대화</h2></header>
+          <div id="messages" class="messages" role="log" aria-label="대화 기록"></div>
+          <form id="composer">
+            <label for="message" class="sr">메시지</label>
+            <textarea id="message" rows="2" placeholder="프라이데이에게 메시지 보내기" maxlength="16000"></textarea>
+            <div class="actions">
+              <button type="button" data-submit-kind="background">백그라운드</button>
+              <button type="button" data-submit-kind="file">파일 작업</button>
+              <button type="submit" class="primary" value="chat" id="send">보내기</button>
+            </div>
+            <p id="composer-feedback" role="status"></p>
+          </form>
+        </section>
+      </div>
+    </div>
+    <p id="notice" role="status"></p>
+  </main>
+</body>
+</html>
