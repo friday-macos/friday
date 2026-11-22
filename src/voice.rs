@@ -1,4 +1,4 @@
-use crate::{local_stt, neural};
+use crate::{local_stt, neural, speech_language::SpeechLanguage};
 use block2::RcBlock;
 use eframe::egui;
 use objc2::{AnyThread, rc::Retained, runtime::Bool};
@@ -39,6 +39,7 @@ pub trait VoiceEngine {
     fn speak(&self, text: &str) -> Result<(), String>;
     fn speaking(&self) -> bool;
     fn set_playback_volume(&self, _volume: u16) {}
+    fn set_language(&self, _language: SpeechLanguage) {}
     fn playback_level(&self) -> Option<f32> {
         None
     }
@@ -73,6 +74,7 @@ pub struct MacVoice {
     speaker: Retained<AVSpeechSynthesizer>,
     neural: Option<neural::Player>,
     playback_volume: Cell<u16>,
+    language: Cell<SpeechLanguage>,
 }
 
 pub fn permission_status() -> (&'static str, &'static str) {
@@ -90,8 +92,11 @@ pub fn permission_status() -> (&'static str, &'static str) {
     (microphone, speech)
 }
 
-pub fn authorize_browser_speech(ctx: &egui::Context) -> Result<(), String> {
-    MacVoice::recognizer()?;
+pub fn authorize_browser_speech(
+    ctx: &egui::Context,
+    language: SpeechLanguage,
+) -> Result<(), String> {
+    MacVoice::recognizer(language)?;
     match unsafe { SFSpeechRecognizer::authorizationStatus() } {
         Speech::Authorized => Ok(()),
         Speech::NotDetermined => {
@@ -105,21 +110,29 @@ pub fn authorize_browser_speech(ctx: &egui::Context) -> Result<(), String> {
 }
 
 impl MacVoice {
-    pub fn new(model: PathBuf, playback_volume: u16) -> Self {
+    pub fn new(model: PathBuf, playback_volume: u16, language: SpeechLanguage) -> Self {
         Self {
             speaker: unsafe { AVSpeechSynthesizer::new() },
             neural: neural::Player::installed(model),
             playback_volume: Cell::new(playback_volume),
+            language: Cell::new(language),
         }
     }
 
-    pub(crate) fn recognizer() -> Result<Retained<SFSpeechRecognizer>, String> {
-        let locale = NSLocale::localeWithLocaleIdentifier(&NSString::from_str("ko-KR"));
+    pub(crate) fn recognizer(
+        language: SpeechLanguage,
+    ) -> Result<Retained<SFSpeechRecognizer>, String> {
+        let locale = NSLocale::localeWithLocaleIdentifier(&NSString::from_str(language.locale));
         let recognizer =
             unsafe { SFSpeechRecognizer::initWithLocale(SFSpeechRecognizer::alloc(), &locale) }
-                .ok_or("이 Mac에서 한국어 음성 인식기를 열 수 없어.")?;
+                .ok_or_else(|| {
+                    format!("Speech recognition is unavailable for {}.", language.name)
+                })?;
         if !unsafe { recognizer.supportsOnDeviceRecognition() } {
-            return Err("이 Mac에서 한국어 오프라인 음성 인식을 사용할 수 없어.".into());
+            return Err(format!(
+                "On-device speech recognition is unavailable for {} on this Mac.",
+                language.name
+            ));
         }
         Ok(recognizer)
     }
@@ -127,7 +140,7 @@ impl MacVoice {
 
 impl VoiceEngine for MacVoice {
     fn permission(&self, ctx: &egui::Context) -> Result<Option<Receiver<()>>, String> {
-        Self::recognizer()?;
+        Self::recognizer(self.language.get())?;
         let bundle = NSBundle::mainBundle();
         for key in [
             "NSSpeechRecognitionUsageDescription",
@@ -185,10 +198,14 @@ impl VoiceEngine for MacVoice {
     ) -> Result<Box<dyn Listening>, String> {
         // AVFoundation objects stay on the app thread. Callback threads append the buffers
         // Apple provides and send owned strings back to the app loop.
-        let recognizer = Self::recognizer()?;
+        let language = self.language.get();
+        let recognizer = Self::recognizer(language)?;
         unsafe {
             if !recognizer.isAvailable() {
-                return Err("macOS 한국어 음성 인식이 지금 응답하지 않아.".into());
+                return Err(format!(
+                    "Speech recognition is not responding for {}.",
+                    language.name
+                ));
             }
             let engine = AVAudioEngine::new();
             let node = engine.inputNode();
@@ -211,8 +228,13 @@ impl VoiceEngine for MacVoice {
             request.setRequiresOnDeviceRecognition(true);
             request.setShouldReportPartialResults(true);
             if wake {
+                let wake_word = if language == SpeechLanguage::KOREAN {
+                    "프라이데이"
+                } else {
+                    "Friday"
+                };
                 request.setContextualStrings(&NSArray::from_retained_slice(&[NSString::from_str(
-                    "프라이데이",
+                    wake_word,
                 )]));
             } else {
                 request.setTaskHint(SFSpeechRecognitionTaskHint::Dictation);
@@ -296,6 +318,7 @@ impl VoiceEngine for MacVoice {
                 level,
                 fallback_audio,
                 sample_rate,
+                language,
                 recording: true,
                 echo_cancelled,
             };
@@ -308,10 +331,17 @@ impl VoiceEngine for MacVoice {
         }
     }
 
+    fn set_language(&self, language: SpeechLanguage) {
+        self.language.set(language);
+    }
+
     fn speak(&self, text: &str) -> Result<(), String> {
         self.stop_speaking();
-        if let Some(neural) = &self.neural
-            && neural.speak(text, self.playback_volume.get()).is_ok()
+        if self.language.get().uses_neural_voice()
+            && let Some(neural) = &self.neural
+            && neural
+                .speak(text, self.playback_volume.get(), self.language.get())
+                .is_ok()
         {
             return Ok(());
         }
@@ -345,7 +375,9 @@ impl VoiceEngine for MacVoice {
     }
 
     fn warm(&self) {
-        if let Some(neural) = &self.neural {
+        if self.language.get().uses_neural_voice()
+            && let Some(neural) = &self.neural
+        {
             let _ = neural.warm();
         }
     }
@@ -364,17 +396,22 @@ impl VoiceEngine for MacVoice {
 impl MacVoice {
     fn speak_apple(&self, text: &str) -> Result<(), String> {
         unsafe {
-            let preferred =
-                AVSpeechSynthesisVoice::voiceWithLanguage(Some(&NSString::from_str("ko-KR")));
+            let language = self.language.get();
+            let preferred = AVSpeechSynthesisVoice::voiceWithLanguage(Some(&NSString::from_str(
+                language.locale,
+            )));
             let preferred_quality = preferred.as_ref().map_or(0, |voice| voice.quality().0);
             let voice = AVSpeechSynthesisVoice::speechVoices()
                 .iter()
                 .filter(|voice| {
-                    voice.language().to_string() == "ko-KR" && voice.quality().0 > preferred_quality
+                    voice.language().to_string() == language.locale
+                        && voice.quality().0 > preferred_quality
                 })
                 .max_by_key(|voice| voice.quality().0)
                 .or(preferred)
-                .ok_or("macOS 한국어 읽기 음성을 찾을 수 없어.")?;
+                .ok_or_else(|| {
+                    format!("No macOS reading voice is installed for {}.", language.name)
+                })?;
             let utterance = AVSpeechUtterance::speechUtteranceWithString(&NSString::from_str(text));
             utterance.setVoice(Some(&voice));
             utterance.setVolume(f32::from(self.playback_volume.get().min(100)) / 100.0);
@@ -400,6 +437,7 @@ struct MacListening {
     level: Arc<AtomicU32>,
     fallback_audio: Option<Arc<Mutex<Vec<f32>>>>,
     sample_rate: f64,
+    language: SpeechLanguage,
     recording: bool,
     echo_cancelled: bool,
 }
@@ -439,7 +477,7 @@ impl Listening for MacListening {
         let Some(model) = local_stt::bundled_model() else {
             return Ok(None);
         };
-        let worker = local_stt::Worker::start(model, ctx.clone())?;
+        let worker = local_stt::Worker::start(model, ctx.clone(), self.language)?;
         worker.submit(samples)?;
         Ok(Some(worker))
     }
@@ -609,6 +647,12 @@ impl Voice {
     }
     pub fn speaking(&self) -> bool {
         self.engine.speaking()
+    }
+
+    pub fn set_language(&mut self, language: SpeechLanguage, ctx: &egui::Context) {
+        self.stop_speaking();
+        self.engine.set_language(language);
+        self.resume_wake(ctx);
     }
 
     pub fn set_playback_volume(&self, volume: u16) {
@@ -975,7 +1019,7 @@ impl Voice {
                 .and_then(|playback| {
                     let new_words = after_prefix(heard, &playback.old_transcript);
                     let new_voice = normalized(new_words);
-                    let is_stop = matches!(new_voice.as_str(), "잠깐" | "그만" | "멈춰");
+                    let is_stop = matches!(new_voice.as_str(), "잠깐" | "그만" | "멈춰" | "stop");
                     ((is_stop || new_voice.chars().count() >= 6)
                         && !playback.text.contains(&new_voice))
                     .then_some((
@@ -994,7 +1038,7 @@ impl Voice {
                         let words = after_prefix(heard, prefix).to_owned();
                         let stop = matches!(
                             normalized(&words).as_str(),
-                            "그만" | "멈춰" | "대화끝" | "음성대화끝"
+                            "그만" | "멈춰" | "대화끝" | "음성대화끝" | "stop" | "endconversation"
                         );
                         (prefix.to_owned(), words, stop)
                     }
@@ -1116,7 +1160,10 @@ impl Voice {
                 .map(String::as_str)
                 .unwrap_or(&recording.text);
             if words.trim().is_empty()
-                || matches!(normalized(words).as_str(), "그만" | "대화끝" | "음성대화끝")
+                || matches!(
+                    normalized(words).as_str(),
+                    "그만" | "대화끝" | "음성대화끝" | "stop" | "endconversation"
+                )
             {
                 self.resume_wake(ctx);
                 return None;

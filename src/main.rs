@@ -7,6 +7,7 @@ mod memory;
 mod neural;
 mod remote;
 mod screen;
+mod speech_language;
 mod speech_stream;
 mod tasks;
 mod voice;
@@ -16,6 +17,7 @@ use desktop::{Action, Desktop};
 use eframe::egui;
 use memory::{BackgroundKind, Decision, Exchange, Memory, PendingBackground};
 use serde_json::{Value, json};
+use speech_language::SpeechLanguage;
 use std::{
     cmp::Reverse,
     env, fs, io,
@@ -83,6 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let history = memory.history()?;
     let decisions = memory.decisions()?;
     let playback_volume = memory.playback_volume()?;
+    let speech_language = memory.speech_language()?;
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1050.0, 690.0])
@@ -111,8 +114,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 voice: Voice::new(MacVoice::new(
                     directory.join("voice-model"),
                     playback_volume,
+                    speech_language,
                 )),
                 playback_volume,
+                speech_language,
                 voice_draft: false,
                 send_voice_draft: false,
                 dashboard: false,
@@ -277,6 +282,7 @@ struct Jarvis {
     desktop: Desktop,
     voice: Voice,
     playback_volume: u16,
+    speech_language: SpeechLanguage,
     voice_draft: bool,
     send_voice_draft: bool,
     dashboard: bool,
@@ -659,7 +665,8 @@ impl Jarvis {
                         && voice::permission_status().1 != "허용됨"
                         && ui.button("웹 음성 인식 허용").clicked()
                     {
-                        self.notice = voice::authorize_browser_speech(ctx).err();
+                        self.notice =
+                            voice::authorize_browser_speech(ctx, self.speech_language).err();
                     }
                     toggle = ui.button("웹 연결 끄기").clicked();
                 } else {
@@ -862,7 +869,7 @@ impl Jarvis {
                 return remote::error(409, "Mac의 프라이데이에 음성 인식 권한을 허용해줘.");
             }
             let model = self.state_dir.with_file_name("voice-model");
-            return match web_voice::Session::new(&model, transcriber, ctx) {
+            return match web_voice::Session::new(&model, transcriber, ctx, self.speech_language) {
                 Ok(session) => {
                     let key = session.key().to_owned();
                     self.web_voice = Some(session);
@@ -1097,7 +1104,33 @@ impl Jarvis {
                 self.submit(ui.ctx(), Submission::FileTask);
             }
         });
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
+            let mut language = self.speech_language;
+            ui.label("음성 언어 / Voice language");
+            let can_change_language = !self.foreground_busy()
+                && !self.voice.is_dictating()
+                && !self.voice.speaking()
+                && self.web_voice.is_none();
+            ui.add_enabled_ui(can_change_language, |ui| {
+                egui::ComboBox::from_id_salt("speech-language")
+                    .selected_text(language.name)
+                    .show_ui(ui, |ui| {
+                        for option in SpeechLanguage::ALL {
+                            ui.selectable_value(&mut language, option, option.name);
+                        }
+                    })
+                    .response
+                    .on_hover_text("Voice language · Mac and web");
+            });
+            if language != self.speech_language {
+                match self.memory.set_speech_language(language) {
+                    Ok(()) => {
+                        self.speech_language = language;
+                        self.voice.set_language(language, ui.ctx());
+                    }
+                    Err(error) => self.notice = Some(error.to_string()),
+                }
+            }
             ui.label("낭독 음량");
             let slider = ui.add(
                 egui::Slider::new(&mut self.playback_volume, 0..=200)

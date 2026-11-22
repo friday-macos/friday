@@ -1,3 +1,4 @@
+use crate::speech_language::SpeechLanguage;
 use eframe::egui;
 use std::{
     path::PathBuf,
@@ -35,7 +36,11 @@ pub fn bundled_model() -> Option<PathBuf> {
 }
 
 impl Worker {
-    pub fn start(model: PathBuf, ctx: egui::Context) -> Result<Self, String> {
+    pub fn start(
+        model: PathBuf,
+        ctx: egui::Context,
+        language: SpeechLanguage,
+    ) -> Result<Self, String> {
         if ACTIVE.swap(true, Ordering::AcqRel) {
             return Err("이전 음성 인식이 끝난 뒤 다시 시작해줘.".into());
         }
@@ -60,7 +65,7 @@ impl Worker {
                     }
                 };
                 while let Ok(samples) = requests.recv() {
-                    let result = transcribe(&mut state, &samples);
+                    let result = transcribe(&mut state, &samples, language);
                     if events.send(result).is_err() {
                         break;
                     }
@@ -78,7 +83,11 @@ impl Worker {
     }
 }
 
-fn transcribe(state: &mut whisper_rs::WhisperState, samples: &[f32]) -> ResultText {
+fn transcribe(
+    state: &mut whisper_rs::WhisperState,
+    samples: &[f32],
+    language: SpeechLanguage,
+) -> ResultText {
     if samples.len() < 3000 || !samples.iter().any(|sample| sample.abs() >= 0.015) {
         return Ok(String::new());
     }
@@ -87,7 +96,7 @@ fn transcribe(state: &mut whisper_rs::WhisperState, samples: &[f32]) -> ResultTe
         patience: -1.0,
     });
     params.set_n_threads(4);
-    params.set_language(Some("ko"));
+    params.set_language(Some(language.code));
     params.set_no_context(true);
     params.set_no_timestamps(true);
     params.set_suppress_blank(true);

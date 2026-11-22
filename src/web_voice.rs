@@ -1,4 +1,4 @@
-use crate::{local_stt, neural, voice};
+use crate::{local_stt, neural, speech_language::SpeechLanguage, voice};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use block2::RcBlock;
 use eframe::egui;
@@ -32,16 +32,19 @@ struct AppleAsr {
 }
 
 impl AppleAsr {
-    fn start(ctx: &egui::Context) -> Result<Self, String> {
+    fn start(ctx: &egui::Context, language: SpeechLanguage) -> Result<Self, String> {
         unsafe {
             if SFSpeechRecognizer::authorizationStatus()
                 != SFSpeechRecognizerAuthorizationStatus::Authorized
             {
                 return Err("Mac의 프라이데이에 음성 인식 권한을 허용해줘.".into());
             }
-            let recognizer = voice::MacVoice::recognizer()?;
+            let recognizer = voice::MacVoice::recognizer(language)?;
             if !recognizer.isAvailable() {
-                return Err("Mac에서 한국어 음성 인식을 지금 사용할 수 없어.".into());
+                return Err(format!(
+                    "Speech recognition is unavailable for {} on the Mac.",
+                    language.name
+                ));
             }
             let format = AVAudioFormat::initStandardFormatWithSampleRate_channels(
                 AVAudioFormat::alloc(),
@@ -145,6 +148,7 @@ fn validate_packet(packet: &[u8], received: usize, finished: bool) -> Result<(),
 }
 
 pub struct Session {
+    language: SpeechLanguage,
     key: String,
     seen: Instant,
     asr: Option<Asr>,
@@ -170,7 +174,11 @@ impl Session {
         model: &Path,
         local_model: Option<PathBuf>,
         ctx: &egui::Context,
+        language: SpeechLanguage,
     ) -> Result<Self, String> {
+        if !language.uses_neural_voice() {
+            return Err("Web voice currently uses English or Korean. For other languages, use Mac voice or web text.".into());
+        }
         let mut random = [0; 18];
         getrandom::fill(&mut random).map_err(|error| error.to_string())?;
         let helper = std::env::current_exe()
@@ -180,10 +188,11 @@ impl Session {
             return Err("Mac에서 로컬 Qwen3 음성 모델을 찾지 못했어.".into());
         }
         let local_asr = local_model
-            .map(|model| local_stt::Worker::start(model, ctx.clone()))
+            .map(|model| local_stt::Worker::start(model, ctx.clone(), language))
             .transpose()?;
         let voice = neural::Process::start(&helper, model, true)?;
         Ok(Self {
+            language,
             key: STANDARD.encode(random),
             seen: Instant::now(),
             asr: None,
@@ -227,7 +236,7 @@ impl Session {
                 finished: None,
             })
         } else {
-            Asr::Apple(AppleAsr::start(ctx)?)
+            Asr::Apple(AppleAsr::start(ctx, self.language)?)
         };
         self.stop_output();
         self.notice = None;
@@ -325,7 +334,7 @@ impl Session {
             self.render_serial += 1;
             match self
                 .voice
-                .send(&json!({"id":self.render_serial,"text":text}))
+                .send(&json!({"id":self.render_serial,"text":text,"language":self.language.code}))
             {
                 Ok(()) => self.rendering = Some(Instant::now() + Duration::from_secs(85)),
                 Err(error) => {

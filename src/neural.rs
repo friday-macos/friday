@@ -1,3 +1,4 @@
+use crate::speech_language::SpeechLanguage;
 use serde_json::{Value, json};
 use std::{
     cell::{Cell, RefCell},
@@ -68,7 +69,7 @@ impl Player {
         Ok(())
     }
 
-    pub fn speak(&self, text: &str, volume: u16) -> Result<(), String> {
+    pub fn speak(&self, text: &str, volume: u16, language: SpeechLanguage) -> Result<(), String> {
         self.warm()?;
         let id = self.next_id.get().wrapping_add(1).max(1);
         self.next_id.set(id);
@@ -76,7 +77,8 @@ impl Player {
         let Some(process) = process.as_mut() else {
             return Err("로컬 음성 엔진을 열 수 없어.".into());
         };
-        process.send(&json!({"id": id, "text": text, "volume": volume}))?;
+        process
+            .send(&json!({"id": id, "text": text, "volume": volume, "language": language.code}))?;
         *self.current.borrow_mut() = Some(Utterance {
             id,
             text: text.to_owned(),

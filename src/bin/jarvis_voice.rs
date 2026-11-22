@@ -229,7 +229,7 @@ fn serve() -> Result<(), Box<dyn std::error::Error>> {
         levels
     });
     let playback: Arc<Mutex<Option<Arc<Sink>>>> = Arc::new(Mutex::new(None));
-    let (requests, queue) = mpsc::channel::<(u64, String)>();
+    let (requests, queue) = mpsc::channel::<(u64, String, Language)>();
     let input_serial = serial.clone();
     let input_volume = volume.clone();
     let input_playback = playback.clone();
@@ -250,7 +250,16 @@ fn serve() -> Result<(), Box<dyn std::error::Error>> {
             }
             if id != 0
                 && let Some(text) = message["text"].as_str()
-                && requests.send((id, text.to_owned())).is_err()
+                && requests
+                    .send((
+                        id,
+                        text.to_owned(),
+                        message["language"]
+                            .as_str()
+                            .and_then(|code| code.parse::<Language>().ok())
+                            .unwrap_or(Language::Korean),
+                    ))
+                    .is_err()
             {
                 break;
             }
@@ -281,7 +290,7 @@ fn serve() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     emit(json!({"event":"ready", "load_ms":load_ms, "prepare_ms":prepare.elapsed().as_millis()}));
-    while let Ok((id, text)) = queue.recv_timeout(Duration::from_secs(180)) {
+    while let Ok((id, text, language)) = queue.recv_timeout(Duration::from_secs(180)) {
         if serial.load(Ordering::Acquire) != id {
             continue;
         }
@@ -302,7 +311,11 @@ fn serve() -> Result<(), Box<dyn std::error::Error>> {
         let mut level = SpeechLevel::default();
         let mut sample_rate = 24000;
         let max_length = (text.chars().count() * 14 + 48).clamp(72, 1300);
-        let result = model.synthesize_streaming(&text, Speaker::Sohee, Language::Korean,
+        let speaker = match language {
+            Language::Korean => Speaker::Sohee,
+            _ => Speaker::Ryan,
+        };
+        let result = model.synthesize_streaming(&text, speaker, language,
             SynthesisOptions { chunk_frames: 6, max_length, ..Default::default() })
             .and_then(|stream| {
                 for buffer in stream {

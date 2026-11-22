@@ -103,6 +103,9 @@ impl Memory {
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 volume INTEGER NOT NULL CHECK (volume BETWEEN 0 AND 200)
             );
+            CREATE TABLE IF NOT EXISTS speech_preferences (
+                id INTEGER PRIMARY KEY CHECK (id = 1), language TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS decisions (
                 id INTEGER PRIMARY KEY, exchange_id INTEGER NOT NULL,
                 action TEXT NOT NULL, approved INTEGER NOT NULL CHECK (approved IN (0, 1)),
@@ -125,6 +128,28 @@ impl Memory {
             connection,
             _instance: instance,
         })
+    }
+
+    pub fn speech_language(&self) -> rusqlite::Result<crate::speech_language::SpeechLanguage> {
+        self.connection
+            .query_row(
+                "SELECT COALESCE((SELECT language FROM speech_preferences WHERE id = 1), 'ko')",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .map(|code| crate::speech_language::SpeechLanguage::from_code(&code))
+    }
+
+    pub fn set_speech_language(
+        &self,
+        language: crate::speech_language::SpeechLanguage,
+    ) -> rusqlite::Result<()> {
+        self.connection.execute(
+            "INSERT INTO speech_preferences (id, language) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET language = excluded.language",
+            [language.code],
+        )?;
+        Ok(())
     }
 
     pub fn playback_volume(&self) -> rusqlite::Result<u16> {
@@ -419,6 +444,24 @@ fn project_root(directory: &Path) -> Option<&Path> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn speech_language_defaults_to_korean_and_survives_reopening() {
+        use crate::speech_language::SpeechLanguage;
+
+        let path =
+            std::env::temp_dir().join(format!("friday-speech-language-{}", std::process::id()));
+        let memory = Memory::open(&path).unwrap();
+        assert_eq!(memory.speech_language().unwrap(), SpeechLanguage::KOREAN);
+        let spanish = SpeechLanguage::from_code("es");
+        memory.set_speech_language(spanish).unwrap();
+        drop(memory);
+
+        let memory = Memory::open(&path).unwrap();
+        assert_eq!(memory.speech_language().unwrap(), spanish);
+        drop(memory);
+        fs::remove_dir_all(path).unwrap();
+    }
 
     #[test]
     fn open_document_uses_a_registered_or_detected_project_only() {

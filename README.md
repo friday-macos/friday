@@ -23,11 +23,19 @@ FRIDAY는 메뉴 막대에서 열리는 한국어 음성·텍스트 비서다. �
 2. Build and open `FRIDAY.app` using the [build commands below](#소스에서-빌드). The source build requires Rust, Cargo, the Xcode Command Line Tools, and CMake.
 3. Type your message and send with `⌘↵` or **보내기** (Send). You can use the text field on the Mac or in a connected browser.
 
+### Language features in the development version
+
+When building the latest source on `main`, FRIDAY asks Codex to reply in the language of the current message. You can still ask for another reply language explicitly.
+
+Choose **음성 언어 / Voice language** beside the volume controls on the Mac before starting a voice session. The Mac selector offers English, Korean, Chinese, Japanese, Spanish, French, German, Italian, Portuguese, and Russian. Voice input and playback depend on the on-device recognition and reading voices available on your Mac. Web voice currently supports English and Korean and requires the Mac connection and the optional Qwen3-TTS model.
+
 ## 시작하기
 
 1. Apple Silicon Mac에 공식 Codex CLI를 설치하고 본인의 ChatGPT 계정으로 `codex login`을 실행한다. FRIDAY는 Codex app-server에 연결한다. 별도의 OpenAI API 키를 설정할 필요는 없다. [Codex CLI 설치](https://developers.openai.com/codex/cli)
 2. [소스에서 빌드](#소스에서-빌드)한 `FRIDAY.app`을 연다. **보내기** 또는 `⌘↵`로 첫 메시지를 보낸다.
 3. 음성을 쓸 때 **말하기**를 누른 뒤 macOS의 마이크와 음성 인식 권한을 허용한다. Mac 낭독은 macOS 한국어 음성을 사용할 수 있다.
+
+최신 개발 소스에서는 입력한 언어로 답변한다. Mac 화면의 **음성 언어 / Voice language**에서 언어를 선택할 수 있다. 웹 음성은 한국어와 영어를 지원한다.
 
 ### 선택 기능
 
